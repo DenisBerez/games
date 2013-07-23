@@ -3,43 +3,26 @@ import math
 import pyglet
 from pyglet import gl
 from pyglet.window import key
-from Box2D import (
-    b2Vec2, b2PolygonDef, b2World,
-    b2BodyDef, b2AABB, b2CircleDef,
-    b2MouseJointDef, b2RevoluteJointDef, b2ContactListener,
-    b2DistanceJointDef, b2BuoyancyControllerDef
-)
-
+from Box2D import *
 
 FPS = 60
 TIMESTEP = 1.0 / FPS
 W = 100
 H = 72
 FLOOR = 5
-#FLOOR1 = 15
 
 SCALE = 0.1    # World units - screen units conversion factor
 
 world = None  # let's keep world as a global for now
+mouse_joint = None
 
-''' Создаем наш мир.
-            world =  new b2World(
-                new b2Vec2(0, 10)   # Вектор гравитации.
-               ,true                          # doSleep флаг.
-             )'''
 def load_image_centered(filename):
     """Load an image and set its anchor point to the middle."""
     im = pyglet.image.load(filename)
     im.anchor_x = im.width // 2
     im.anchor_y = im.height // 2
     return im
-
-
 # Load sprites
-tank_body_image = load_image_centered('textures/tank-body.png')
-tank_body_image2 = load_image_centered('textures/tank-body2.png')
-tank_barrel_image = pyglet.image.load('textures/tank-barrel.png')
-tank_barrel_image2 = pyglet.image.load('textures/tank-barrel2.png')
 earth_tex = pyglet.image.load('textures/earth-tex.png').get_mipmapped_texture()
 
 
@@ -55,7 +38,6 @@ def world_to_screen(pos):
 
 def sprite_scale(self):
     return 0.1 / SCALE
-
 
 def setup_world():
     world_bounds = b2AABB()
@@ -74,7 +56,7 @@ def setup_world():
     WALLS = [
         (W, FLOOR * 0.5, (W / 2, FLOOR * 0.5), 0),  # floor
         #(W / 2, 1, (W / 2, H + 1), 0),  # ceiling
-        #(1, 600, (-1, -500), 0),  # left wall
+        (1, 600, (-1, -500), 0),  # left wall
         #(1, 600, (W + 1, -500), 0),  # right wall
     ]
 
@@ -84,7 +66,6 @@ def setup_world():
         walls.CreateShape(shape)
 
     return world
-
 
 class GraphicalObject(object):
     # Load image here
@@ -124,15 +105,13 @@ def circle_def(radius,
         center=(0, 0),
         density=1,
         restitution=0.1,
-        friction=2,
-        groupindex=0):
+        friction=2):
     s = b2CircleDef()
     s.radius = radius
     s.localPosition = b2Vec2(*center)
     s.density = density
     s.restitution = restitution
     s.friction = friction
-    s.filter.groupIndex = groupindex
     return s
 
 
@@ -156,7 +135,6 @@ class PhysicalObject(GraphicalObject):
         body.SetBullet(self.BULLET)
         body.SetMassFromShapes()
         self.body = body
-        #buoyancy.AddBody(body)
         body.userData = self
 
     def update(self, dt):
@@ -166,34 +144,14 @@ class PhysicalObject(GraphicalObject):
     def destroy(self):
         world.DestroyBody(self.body)
         objects.remove(self)
-
-
-class Brick(PhysicalObject):
-    """Just another brick in the wall."""
-    W = 4.7
-    H = 2
-    IMAGE = load_image_centered('textures/brick.png')
-
-    def create_body(self, pos):
-        bodydef = b2BodyDef()
-        bodydef.position = b2Vec2(*pos)
-        body = world.CreateBody(bodydef)
-        shape = b2PolygonDef()
-        shape.SetAsBox(self.W * 0.5, self.H * 0.5, (0, 0), 0)
-        shape.density = 0.5
-        shape.restitution = 0.1
-        shape.friction = 0.5
-        body.CreateShape(shape)
-        body.SetMassFromShapes()
-        self.body = body
-
-
-class HalfBrick(Brick):
-    W = 2.2
-    H = 2
-    IMAGE = load_image_centered('textures/half-brick.png')
-
-
+        
+class Wheel(PhysicalObject):
+    IMAGE = load_image_centered('textures/wheel.png')
+    SHAPEDEFS = [
+        circle_def(1.6, friction=50.0)
+    ]
+    
+    
 class Cannonball(PhysicalObject):
     RADIUS = 0.8
     IMAGE = load_image_centered('textures/cannonball.png')
@@ -202,7 +160,6 @@ class Cannonball(PhysicalObject):
     def fire(self, pos, velocity):
         c = Cannonball(pos)
         c.body.SetLinearVelocity(b2Vec2(*velocity))
-        #import ipdb; ipdb.set_trace()
         objects.append(c)
         return c
 
@@ -212,38 +169,32 @@ class Cannonball(PhysicalObject):
         body = world.CreateBody(bodydef)
         cdef = b2CircleDef()
         cdef.radius = self.RADIUS
-        cdef.density = 1.0  #вес тела
-        cdef.restitution = 0.1 # прыгучесть, отскок
-        cdef.friction = 0.5  # сила трения
+        cdef.density = 1.0
+        cdef.restitution = 0.1
+        cdef.friction = 0.5
         body.CreateShape(cdef)
         self.body = body
         body.SetBullet(True)
         body.SetMassFromShapes()
-        
-    '''def destroy(self):
-        import ipdb; ipdb.set_trace()
-        world.DestroyBody(self.body)
-        objects.remove(self)'''
-        
-class Wheel(PhysicalObject):
-    IMAGE = load_image_centered('textures/wheel.png')
+
+
+class TankBarrel(PhysicalObject):
+    IMAGE = load_image_centered('textures/tank-barrel.png')
     SHAPEDEFS = [
-        circle_def(1.0, friction=50.0)
+        box_def(2, 0.5, density=1, groupindex= -1)
     ]
-        
-        
-class Tank(PhysicalObject):
-    IMAGE = None
     
+
+class Tank(PhysicalObject):
+    IMAGE = load_image_centered('textures/tank-body.png')
     SHAPEDEFS = [
-        box_def(5.3, 6.1, (6.0, -0.4)),
-        box_def(17.3, 1.4, (0.0, -2.7), friction=0.5),
-        
+        box_def(5.3, 6.1, (6.0, -0.4), groupindex= -1),
+        box_def(7.3, 1.4, (0.0, -2.7), density=10, groupindex= -1),
     ]
 
     WHEEL_POSITIONS = [
-        b2Vec2(-4.3, -4),#расстояние между колесами
-        b2Vec2(3.8, -4),#
+        b2Vec2(-4.3, -4),
+        b2Vec2(3.8, -4),
     ]
 
     # Angular acceleration
@@ -278,7 +229,8 @@ class Tank(PhysicalObject):
         self.motorspeed += self.motoraccel * self.ACCEL ** dt
         self.motorspeed *= 0.01 ** dt
         self.motoraccel = 0
-        
+        for j in self.joints[:2]:
+            j.SetMotorSpeed(self.motorspeed)
         super(Tank, self).update(dt)
         for w in self.wheels:
             w.update(dt)
@@ -290,30 +242,10 @@ class Tank(PhysicalObject):
         self.wheels[:] = []
         self.joints[:] = []
         
-        
-"""class ContactListener(b2ContactListener):
-    def Add(self, point):
-        o1 = point.shape1.GetBody().userData
-        o2 = point.shape2.GetBody().userData
-
-        for o, a in zip((o1, o2), (o2, o1)):
-            if isinstance(o, Hook) and isinstance(a, Crate):
-                o.set_pick_up(a.body, point.position)
-
-    def Remove(self, point):
-        o1 = point.shape1.GetBody().userData
-        o2 = point.shape2.GetBody().userData
-        for o, a in zip((o1, o2), (o2, o1)):
-            if isinstance(o, Hook) and isinstance(a, Crate):
-                o.cancel_pick_up()"""
-
-
 def clamp(val, minimum, maximum):
     return max(minimum, min(maximum, val))
 
-
-tank_pos = b2Vec2(10, FLOOR + 2.5)
-tank_pos2 = b2Vec2(90, FLOOR + 2.5)
+tank_pos = b2Vec2(10, FLOOR + 5)
 barrel_angle = 0
 
 
@@ -324,101 +256,61 @@ def on_mouse_press(x, y, button, modifiers):
     pos = tank_pos + b2Vec2(0, 2) + v * 3
     Cannonball.fire(pos, v * 100)
 
-
-def on_mouse_motion(x, y, dx, dy):
-    global barrel_angle
     p = screen_to_world((x, y))
-    dx, dy = p - tank_pos
-    barrel_angle = math.degrees(math.atan2(dy, dx))
-    barrel_angle = clamp(barrel_angle, 0, 80)
+
+    # Create a mouse joint on the selected body (assuming it's dynamic)
+'''
+    # Make a small box.
+    aabb = b2AABB()
+    aabb.lowerBound = p - (0.001, 0.001)
+    aabb.upperBound = p + (0.001, 0.001)
 
 
-'''def on_key_press(symbol, modifiers):
-    global slowmo
-    if symbol == pyglet.window.key.S:
-        slowmo = not slowmo'''
-def on_key_press(symbol, modifiers):
-    global controlling
-    keyboard.on_key_press(symbol, modifiers)
-    if symbol == key.TAB:
-        if controlling is tank:
-            controlling = tank2
-        else:
-            controlling = tank
+    # Query the world for overlapping shapes.
+    body = None
+    k_maxCount = 10  # maximum amount of shapes to return
+
+    (count, shapes) = world.Query(aabb, k_maxCount)
+    for shape in shapes:
+        shapeBody = shape.GetBody()
+        if not shapeBody.IsStatic() and shapeBody.GetMass() > 0.0:
+            if shape.TestPoint(shapeBody.GetXForm(), p):  # is it inside?
+                body = shapeBody
+                break
+
+    if body:
+        print "Block clicked"
+        # A body was selected, create the mouse joint
+        md = b2MouseJointDef()
+        md.body1 = world.GetGroundBody()
+        md.body2 = body
+        md.target = p
+        md.maxForce = 100000.0
+        mouse_joint = world.CreateJoint(md).getAsType()
+        body.WakeUp()'''
+
+
+def on_mouse_release(x, y, button, modifiers):
+    global mouse_joint
+    if mouse_joint:
+        world.DestroyJoint(mouse_joint)
+        mouse_joint = None
+
+
+def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+    global mouse_joint
+    if mouse_joint:
+        p = screen_to_world((x, y))
+        mouse_joint.SetTarget(p)
 
 
 batch = None
 tank = None
-tank2 = None
-tank_barrel = None
 objects = []
-slowmo = False
-
-controlling = None
-
-camera = b2Vec2(W * 0.5, H * 0.5)
-
-def tank_controlled(dt):
-    global camera
-    if controlling and controlling.body:
-        p = controlling.body.position
-        cx, cy = camera + (p - camera) * (1.0 - 0.1 ** dt)
-        cx = max(cx, W * 0.5)
-        cy = max(cy, H * 0.5)
-        camera = b2Vec2(cx, cy)
-
-
-def update(dt):
-    world.Step(TIMESTEP * 0.2 if slowmo else TIMESTEP, 20, 16)
-    tank_barrel.rotation = -barrel_angle
-    for b in objects:
-        b.update(dt)
-        
-    '''if controlling is heli:
-        if keyboard[key.UP]:
-            heli.up()
-        if keyboard[key.DOWN]:
-            hook.drop()
-        if keyboard[key.RIGHT]:
-            heli.right()
-        elif keyboard[key.LEFT]:
-            heli.left()'''
-    if controlling is tank:
-        if keyboard[key.RIGHT]:
-            #import ipdb; ipdb.set_trace()
-            tank.right()
-        elif keyboard[key.LEFT]:
-            tank.left()
-    elif controlling is tank2:
-        if keyboard[key.RIGHT]:
-            #import ipdb; ipdb.set_trace()
-            tank.right()
-        elif keyboard[key.LEFT]:
-            tank.left()
-
-    tank_controlled(dt)
-
-
-
-def build_wall(x, y, layers):
-    MORTAR = 0.0
-    for i in xrange(layers):
-        cy = y + i * Brick.H
-        if i % 2:
-            objects.extend([
-                HalfBrick((x - (HalfBrick.W + Brick.W) * 0.5 - MORTAR, cy)),
-                Brick((x, cy)),
-                HalfBrick((x + (HalfBrick.W + Brick.W) * 0.5 + MORTAR, cy)),
-            ])
-        else:
-            objects.extend([
-                Brick((x - Brick.W * 0.5 - MORTAR, cy)),
-                Brick((x + Brick.W * 0.5 + MORTAR, cy)),
-            ])
 
 
 def setup_scene():
-    global batch, tank, tank2, tank_barrel, tank_barel2
+    global batch, tank
     batch = pyglet.graphics.Batch()
 
     # Gradient sky
@@ -432,54 +324,54 @@ def setup_scene():
     )
 
     # Create the ground
-    #ground = pyglet.sprite.Sprite(earth_tex, 0, 0, batch=batch)
-    group = pyglet.sprite.SpriteGroup(earth_tex, gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+    group = pyglet.sprite.SpriteGroup(
+        earth_tex, gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA
+    )
     l, b = world_to_screen((0, 0))
     r, t = world_to_screen((W, FLOOR))
     batch.add(4, gl.GL_QUADS, group,
         ('v2f', [l, b, l, t, r, t, r, b]),
         ('t2f', [0, 0.5, 0, 1, 10, 1, 10, 0.5]),
     )
-
-    # Create tank barrel sprite
-    tank_barrel = pyglet.sprite.Sprite(tank_barrel_image, batch=batch)
-    tank_barrel.position = world_to_screen(tank_pos + b2Vec2(0, 2.6))
-
-    # Create tank sprite
-    Tank.IMAGE = tank_body_image
-    tank = Tank((10, FLOOR + 2.5))
-    objects.append(tank)
-    Tank.IMAGE = tank_body_image2
-    tank2 = Tank((90, FLOOR + 2.5))
-    #import ipdb; ipdb.set_trace()
-    #tank1.sprite._set_rotation(180)
-    objects.append(tank2)
-    #Tank.sprite.rotation
-    #tank = pyglet.sprite.Sprite(tank_body_image, batch=batch)
-    #tank._set_rotation(180)
-    #tank.position = world_to_screen(tank_pos)
     
-    #tank1 = pyglet.sprite.Sprite(tank_body_image, batch=batch)
-    #tank1.position = world_to_screen(tank_pos2)
+    
 
-    build_wall(50, FLOOR, 20)
+    tank = Tank((5, FLOOR + 1))
+    barrel = TankBarrel((8, FLOOR + 4))
+    
+    jd = b2RevoluteJointDef()
+    #fb = b2Fixture()
+    jd.Initialize(tank.body, barrel.body, (11, FLOOR + 7))
+    tank.barrel_joint = world.CreateJoint(jd).getAsType()
+    
+    
+    #objects.append()
+    objects.append(tank)
+    objects.append(barrel)
+
 
 
 def on_draw():
     gl.glMatrixMode(gl.GL_MODELVIEW)
     gl.glLoadIdentity()
     batch.draw()
+    
+    
+def update(dt):
+    world.Step(TIMESTEP, 20, 16)
+    for b in objects:
+        b.update(dt)
+    if keyboard[key.RIGHT]:
+        #import ipdb; ipdb.set_trace()
+        tank.right()
+    elif keyboard[key.LEFT]:
+        tank.left()
+
 
 
 if __name__ == '__main__':
     world = setup_world()
     setup_scene()
-
-    # Warm up the wall physics
-    for i in range(200):
-        world.Step(0.01, 20, 16)
-    # Then freeze the wall in place
-
 
     window = pyglet.window.Window(
         width=int(W / SCALE),
@@ -487,11 +379,12 @@ if __name__ == '__main__':
     )
     keyboard = key.KeyStateHandler()
     window.push_handlers(keyboard)
-    
-    window.event(on_mouse_press)
-    window.event(on_mouse_motion)
+
     window.event(on_draw)
-    window.event(on_key_press)
+    window.event(on_mouse_press)
+    window.event(on_mouse_release)
+    window.event(on_mouse_drag)
 
     pyglet.clock.schedule(update)
     pyglet.app.run()
+
