@@ -122,7 +122,7 @@ class PhysicalObject(GraphicalObject):
     def __init__(self, pos):
         super(PhysicalObject, self).__init__(pos)
         self.create_body(pos)
-
+        
     def create_body(self, pos):
         if not self.SHAPEDEFS:
             return
@@ -179,17 +179,29 @@ class Cannonball(PhysicalObject):
 
 
 class TankBarrel(PhysicalObject):
-    IMAGE = load_image_centered('textures/tank-barrel.png')
+    IMAGE = pyglet.image.load('textures/tank-barrel.png')
     SHAPEDEFS = [
-        box_def(2, 0.5, density=1, groupindex= -1)
-    ]
-    
+        box_def(2, 0.5,
+                density=2,
+                restitution=5.0,
+                friction=20,
+                groupindex= -1)
+                ]
+#tank_pos = None    
 
 class Tank(PhysicalObject):
     IMAGE = load_image_centered('textures/tank-body.png')
     SHAPEDEFS = [
-        box_def(5.3, 6.1, (6.0, -0.4), groupindex= -1),
-        box_def(7.3, 1.4, (0.0, -2.7), density=10, groupindex= -1),
+        box_def(5.3, 6.1, (6.0, -0.4),
+                density=6,
+                restitution=1.0,
+                friction=5,
+                 groupindex= -1),
+        box_def(7.3, 1.4, (0.0, -2.7),
+                density=30,
+                restitution=1.0,
+                friction=5,
+                groupindex= -1),
     ]
 
     WHEEL_POSITIONS = [
@@ -203,12 +215,13 @@ class Tank(PhysicalObject):
     motorspeed = 0
 
     def create_body(self, pos):
-        pos = b2Vec2(*pos)
+        global tank_pos
+        tank_pos = b2Vec2(*pos)
         super(Tank, self).create_body(pos)
         self.wheels = []
         self.joints = []
         for i, p in enumerate(self.WHEEL_POSITIONS):
-            p = pos + p
+            p = tank_pos + p
             w = Wheel(p)
             jdef = b2RevoluteJointDef()
             jdef.enableMotor = i < 2
@@ -220,6 +233,7 @@ class Tank(PhysicalObject):
             self.wheels.append(w)
 
     def left(self):
+        import ipdb; ipdb.set_trace()
         self.motoraccel = 1
 
     def right(self):
@@ -241,11 +255,11 @@ class Tank(PhysicalObject):
             w.destroy()
         self.wheels[:] = []
         self.joints[:] = []
-        
+       
 def clamp(val, minimum, maximum):
     return max(minimum, min(maximum, val))
 
-tank_pos = b2Vec2(10, FLOOR + 5)
+#tank_pos = b2Vec2(10, FLOOR + 5)
 barrel_angle = 0
 
 
@@ -253,7 +267,7 @@ def on_mouse_press(x, y, button, modifiers):
     """Fire in the hole!"""
     angle = math.radians(barrel_angle)
     v = b2Vec2(math.cos(angle), math.sin(angle))
-    pos = tank_pos + b2Vec2(0, 2) + v * 3
+    pos = tank.body.position + b2Vec2(2, 2) + v * 3
     Cannonball.fire(pos, v * 100)
 
     p = screen_to_world((x, y))
@@ -288,6 +302,14 @@ def on_mouse_press(x, y, button, modifiers):
         md.maxForce = 100000.0
         mouse_joint = world.CreateJoint(md).getAsType()
         body.WakeUp()'''
+    
+def on_mouse_motion(x, y, dx, dy):
+    global barrel_angle
+    #import ipdb; ipdb.set_trace()
+    p = screen_to_world((x, y))
+    dx, dy = p - tank.body.position
+    barrel_angle = math.degrees(math.atan2(dy, dx))
+    barrel_angle = clamp(barrel_angle, 0, 80)
 
 
 def on_mouse_release(x, y, button, modifiers):
@@ -306,11 +328,12 @@ def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 
 batch = None
 tank = None
+barrel = None
 objects = []
 
 
 def setup_scene():
-    global batch, tank
+    global batch, tank, barrel
     batch = pyglet.graphics.Batch()
 
     # Gradient sky
@@ -336,19 +359,24 @@ def setup_scene():
     
     
 
-    tank = Tank((5, FLOOR + 1))
-    barrel = TankBarrel((8, FLOOR + 4))
+    tank = Tank((10, FLOOR + 5))
+    barrel = TankBarrel((11, FLOOR + 6))
+    lowerAngle = -0.5 * b2_pi# -90 degrees
+    upperAngle = 0.25 * b2_pi,# 45
+    
     
     jd = b2RevoluteJointDef()
     #fb = b2Fixture()
-    jd.Initialize(tank.body, barrel.body, (11, FLOOR + 7))
+    jd.Initialize(tank.body, barrel.body, (11, FLOOR + 6))
+    #import ipdb; ipdb.set_trace()
+    #jd.lowerAngle = lowerAngle 
+    #jd.upperAngle = upperAngle
     tank.barrel_joint = world.CreateJoint(jd).getAsType()
     
     
     #objects.append()
     objects.append(tank)
     objects.append(barrel)
-
 
 
 def on_draw():
@@ -359,6 +387,9 @@ def on_draw():
     
 def update(dt):
     world.Step(TIMESTEP, 20, 16)
+    #import ipdb; ipdb.set_trace()
+    barrel.rotation = -barrel_angle
+    #barrel.sprite._set_rotation(-barrel_angle)
     for b in objects:
         b.update(dt)
     if keyboard[key.RIGHT]:
@@ -382,8 +413,9 @@ if __name__ == '__main__':
 
     window.event(on_draw)
     window.event(on_mouse_press)
+    window.event(on_mouse_motion)
     window.event(on_mouse_release)
-    window.event(on_mouse_drag)
+    #window.event(on_mouse_drag)
 
     pyglet.clock.schedule(update)
     pyglet.app.run()

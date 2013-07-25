@@ -202,7 +202,6 @@ class Cannonball(PhysicalObject):
     def fire(self, pos, velocity):
         c = Cannonball(pos)
         c.body.SetLinearVelocity(b2Vec2(*velocity))
-        #import ipdb; ipdb.set_trace()
         objects.append(c)
         return c
 
@@ -236,9 +235,16 @@ class Tank(PhysicalObject):
     IMAGE = None
     
     SHAPEDEFS = [
-        box_def(5.3, 6.1, (6.0, -0.4)),
-        box_def(17.3, 1.4, (0.0, -2.7), friction=0.5),
-        
+        box_def(5.3, 6.1, (6.0, -0.4),
+                density=6,
+                restitution=1.0,
+                friction=5,
+                 groupindex= -1),
+        box_def(7.3, 1.4, (0.0, -2.7),
+                density=30,
+                restitution=1.0,
+                friction=5,
+                groupindex= -1),
     ]
 
     WHEEL_POSITIONS = [
@@ -269,6 +275,7 @@ class Tank(PhysicalObject):
             self.wheels.append(w)
 
     def left(self):
+        #import ipdb; ipdb.set_trace()
         self.motoraccel = 1
 
     def right(self):
@@ -278,7 +285,8 @@ class Tank(PhysicalObject):
         self.motorspeed += self.motoraccel * self.ACCEL ** dt
         self.motorspeed *= 0.01 ** dt
         self.motoraccel = 0
-        
+        for j in self.joints[:2]:
+            j.SetMotorSpeed(self.motorspeed)
         super(Tank, self).update(dt)
         for w in self.wheels:
             w.update(dt)
@@ -312,31 +320,24 @@ def clamp(val, minimum, maximum):
     return max(minimum, min(maximum, val))
 
 
-tank_pos = b2Vec2(10, FLOOR + 2.5)
-tank_pos2 = b2Vec2(90, FLOOR + 2.5)
+#tank_pos = b2Vec2(10, FLOOR + 2.5)
+#tank_pos2 = b2Vec2(90, FLOOR + 2.5)
 barrel_angle = 0
+barrel_angle2 = 0
+batch = None
+tank = None
+tank2 = None
+tank_barrel = None
+tank_barrel2 = None
+objects = []
+slowmo = False
+
+controlling = tank
+
+camera = b2Vec2(W * 0.5, H * 0.5)
 
 
-def on_mouse_press(x, y, button, modifiers):
-    """Fire in the hole!"""
-    angle = math.radians(barrel_angle)
-    v = b2Vec2(math.cos(angle), math.sin(angle))
-    pos = tank_pos + b2Vec2(0, 2) + v * 3
-    Cannonball.fire(pos, v * 100)
 
-
-def on_mouse_motion(x, y, dx, dy):
-    global barrel_angle
-    p = screen_to_world((x, y))
-    dx, dy = p - tank_pos
-    barrel_angle = math.degrees(math.atan2(dy, dx))
-    barrel_angle = clamp(barrel_angle, 0, 80)
-
-
-'''def on_key_press(symbol, modifiers):
-    global slowmo
-    if symbol == pyglet.window.key.S:
-        slowmo = not slowmo'''
 def on_key_press(symbol, modifiers):
     global controlling
     keyboard.on_key_press(symbol, modifiers)
@@ -346,55 +347,58 @@ def on_key_press(symbol, modifiers):
         else:
             controlling = tank
 
-
-batch = None
-tank = None
-tank2 = None
-tank_barrel = None
-objects = []
-slowmo = False
-
-controlling = None
-
-camera = b2Vec2(W * 0.5, H * 0.5)
-
 def tank_controlled(dt):
     global camera
     if controlling and controlling.body:
-        p = controlling.body.position
+        p = controlling.body.position   
         cx, cy = camera + (p - camera) * (1.0 - 0.1 ** dt)
         cx = max(cx, W * 0.5)
         cy = max(cy, H * 0.5)
         camera = b2Vec2(cx, cy)
+        
+def on_mouse_press(x, y, button, modifiers):
+    """Fire in the hole!"""
+    if controlling is tank:
+        angle = math.radians(barrel_angle)
+        v = b2Vec2(math.cos(angle), math.sin(angle))
+        pos = controlling.body.position + b2Vec2(1.7, 2) + v * 3.2
+        Cannonball.fire(pos, v * 100)
+    else:
+        angle = math.radians(barrel_angle2)
+        v = b2Vec2(math.cos(angle), math.sin(angle))    
+        pos = controlling.body.position + b2Vec2(1, 2) + v * 3
+        Cannonball.fire(pos, v * 100)
+    
+def on_mouse_motion(x, y, dx, dy):
+    global barrel_angle, barrel_angle2
+    p = screen_to_world((x, y))
+    dx, dy = p - controlling.body.position
+    if controlling is tank:
+        barrel_angle = math.degrees(math.atan2(dy, dx))
+        barrel_angle = clamp(barrel_angle, 0, 80)
+    else:
+        barrel_angle2 = math.degrees(math.atan2(dy, dx))
+        barrel_angle2 = clamp(barrel_angle2, 90, 90)#?
 
 
 def update(dt):
-    world.Step(TIMESTEP * 0.2 if slowmo else TIMESTEP, 20, 16)
+    world.Step(TIMESTEP, 20, 16)
     tank_barrel.rotation = -barrel_angle
+    tank_barrel.position = world_to_screen(tank.body.position + b2Vec2(1, 0.6))
+    tank_barrel2.rotation = -barrel_angle2   
+    tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-6.5, 0.6))
     for b in objects:
         b.update(dt)
-        
-    '''if controlling is heli:
-        if keyboard[key.UP]:
-            heli.up()
-        if keyboard[key.DOWN]:
-            hook.drop()
-        if keyboard[key.RIGHT]:
-            heli.right()
-        elif keyboard[key.LEFT]:
-            heli.left()'''
     if controlling is tank:
         if keyboard[key.RIGHT]:
-            #import ipdb; ipdb.set_trace()
-            tank.right()
+            tank.right()        
         elif keyboard[key.LEFT]:
             tank.left()
     elif controlling is tank2:
         if keyboard[key.RIGHT]:
-            #import ipdb; ipdb.set_trace()
-            tank.right()
-        elif keyboard[key.LEFT]:
-            tank.left()
+            tank2.right()
+        elif keyboard[key.LEFT]:    
+            tank2.left()
 
     tank_controlled(dt)
 
@@ -418,7 +422,7 @@ def build_wall(x, y, layers):
 
 
 def setup_scene():
-    global batch, tank, tank2, tank_barrel, tank_barel2
+    global batch, tank, tank2, tank_barrel, tank_barrel2
     batch = pyglet.graphics.Batch()
 
     # Gradient sky
@@ -441,9 +445,11 @@ def setup_scene():
         ('t2f', [0, 0.5, 0, 1, 10, 1, 10, 0.5]),
     )
 
-    # Create tank barrel sprite
     tank_barrel = pyglet.sprite.Sprite(tank_barrel_image, batch=batch)
-    tank_barrel.position = world_to_screen(tank_pos + b2Vec2(0, 2.6))
+    tank_barrel.position = world_to_screen(b2Vec2(10, FLOOR + 2.5) + b2Vec2(1, 0.6))
+    tank_barrel2 = pyglet.sprite.Sprite(tank_barrel_image2, batch=batch)
+    tank_barrel2.position = world_to_screen(b2Vec2(90, FLOOR + 2.5) + b2Vec2(-6.7, 3))
+    
 
     # Create tank sprite
     Tank.IMAGE = tank_body_image
@@ -451,16 +457,9 @@ def setup_scene():
     objects.append(tank)
     Tank.IMAGE = tank_body_image2
     tank2 = Tank((90, FLOOR + 2.5))
-    #import ipdb; ipdb.set_trace()
     #tank1.sprite._set_rotation(180)
     objects.append(tank2)
-    #Tank.sprite.rotation
-    #tank = pyglet.sprite.Sprite(tank_body_image, batch=batch)
-    #tank._set_rotation(180)
-    #tank.position = world_to_screen(tank_pos)
     
-    #tank1 = pyglet.sprite.Sprite(tank_body_image, batch=batch)
-    #tank1.position = world_to_screen(tank_pos2)
 
     build_wall(50, FLOOR, 20)
 
