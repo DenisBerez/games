@@ -34,12 +34,18 @@ def load_image_centered(filename):
     im.anchor_y = im.height // 2
     return im
 
+def load_image_ending(filename):
+    im = pyglet.image.load(filename)
+    im.anchor_x = im.width
+    im.anchor_y = im.height
+    return im
+
 
 # Load sprites
 tank_body_image = load_image_centered('textures/tank-body.png')
 tank_body_image2 = load_image_centered('textures/tank-body2.png')
 tank_barrel_image = pyglet.image.load('textures/tank-barrel.png')
-tank_barrel_image2 = pyglet.image.load('textures/tank-barrel2.png')
+tank_barrel_image2 = load_image_ending('textures/tank-barrel2.png')
 earth_tex = pyglet.image.load('textures/earth-tex.png').get_mipmapped_texture()
 
 
@@ -197,6 +203,7 @@ class HalfBrick(Brick):
 class Cannonball(PhysicalObject):
     RADIUS = 0.8
     IMAGE = load_image_centered('textures/cannonball.png')
+    exploding = False
 
     @classmethod
     def fire(self, pos, velocity):
@@ -219,11 +226,55 @@ class Cannonball(PhysicalObject):
         body.SetBullet(True)
         body.SetMassFromShapes()
         
+        
+    def explode(self):
+        self.exploding = True
+        #explosion_sound.play()
+
+    def update(self, dt):
+        if self.exploding and self.body:
+            self.destroy()
+            objects.append(Explosion(self.body.position))
+        else:
+            super(Cannonball, self).update(dt)
     '''def destroy(self):
         import ipdb; ipdb.set_trace()
         world.DestroyBody(self.body)
         objects.remove(self)'''
         
+        
+        
+class Explosion(GraphicalObject):
+    IMAGE = load_image_centered('textures/explosion.png')
+    ANGULAR_VELOCITY = 720
+    MAX_AGE = 0.4
+    age = 0
+
+    def create_sprite(self, pos):
+        super(Explosion, self).create_sprite(pos)
+        self.sprite.scale = 0.5
+
+    def update(self, dt):
+        self.age += dt
+        if self.age > self.MAX_AGE:
+            self.destroy()
+            return
+        self.sprite.scale *= 500.0 ** dt  # grow
+        self.sprite.rotation += self.ANGULAR_VELOCITY * dt  # spin
+        self.sprite.opacity = 255.0 * (1.0 - self.age / self.MAX_AGE)  # fade
+
+
+class ContactListener(b2ContactListener):
+    def Add(self, point):
+        o1 = point.shape1.GetBody().userData
+        o2 = point.shape2.GetBody().userData
+        if isinstance(o1, Cannonball):
+            o1.explode()
+        if isinstance(o2, Cannonball):
+            o2.explode()
+
+
+
 class Wheel(PhysicalObject):
     IMAGE = load_image_centered('textures/wheel.png')
     SHAPEDEFS = [
@@ -322,8 +373,8 @@ def clamp(val, minimum, maximum):
 
 #tank_pos = b2Vec2(10, FLOOR + 2.5)
 #tank_pos2 = b2Vec2(90, FLOOR + 2.5)
-barrel_angle = 0
-barrel_angle2 = 0
+#barrel_angle = 0
+#barrel_angle2 = 0
 batch = None
 tank = None
 tank2 = None
@@ -332,7 +383,7 @@ tank_barrel2 = None
 objects = []
 slowmo = False
 
-controlling = tank
+'''controlling = tank
 
 camera = b2Vec2(W * 0.5, H * 0.5)
 
@@ -359,15 +410,15 @@ def tank_controlled(dt):
 def on_mouse_press(x, y, button, modifiers):
     """Fire in the hole!"""
     if controlling is tank:
-        angle = math.radians(barrel_angle)
+        angle = math.radians(-tank_barrel.rotation)
         v = b2Vec2(math.cos(angle), math.sin(angle))
         pos = controlling.body.position + b2Vec2(1.7, 2) + v * 3.2
         Cannonball.fire(pos, v * 100)
     else:
-        angle = math.radians(barrel_angle2)
+        angle = math.radians(tank_barrel2.rotation)
         v = b2Vec2(math.cos(angle), math.sin(angle))    
-        pos = controlling.body.position + b2Vec2(1, 2) + v * 3
-        Cannonball.fire(pos, v * 100)
+        pos = controlling.body.position + b2Vec2(-6, 2) + - v * 3
+        Cannonball.fire((pos), v * 100)
     
 def on_mouse_motion(x, y, dx, dy):
     global barrel_angle, barrel_angle2
@@ -377,30 +428,64 @@ def on_mouse_motion(x, y, dx, dy):
         barrel_angle = math.degrees(math.atan2(dy, dx))
         barrel_angle = clamp(barrel_angle, 0, 80)
     else:
-        barrel_angle2 = math.degrees(math.atan2(dy, dx))
-        barrel_angle2 = clamp(barrel_angle2, 90, 90)#?
+        barrel_angle2 = math.degrees(math.atan2(dy, -dx))
+        barrel_angle2 = clamp(barrel_angle2, 0, 80)'''
+ 
+def on_key_press(symbol, modifiers):
+    keyboard.on_key_press(symbol, modifiers)
+    if symbol == key.E:
+        angle = math.radians(-tank_barrel.rotation)
+        v = b2Vec2(math.cos(angle), math.sin(angle))
+        pos = tank.body.position + b2Vec2(1.7, 2) + v * 3.2
+        Cannonball.fire(pos, v * 100)
+    if symbol == key.INSERT:
+        angle = math.radians(-tank_barrel2.rotation)
+        v = b2Vec2(math.cos(angle), math.sin(angle))    
+        pos = tank2.body.position + b2Vec2(-6, 2) + v * 3
+        #import ipdb;ipdb.set_trace()
+        Cannonball.fire((pos), (-v) * 100)
 
 
 def update(dt):
     world.Step(TIMESTEP, 20, 16)
-    tank_barrel.rotation = -barrel_angle
     tank_barrel.position = world_to_screen(tank.body.position + b2Vec2(1, 0.6))
-    tank_barrel2.rotation = -barrel_angle2   
-    tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-6.5, 0.6))
+    #tank_barrel2.rotation = barrel_angle2   
+    tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-0.5, 1.6))
     for b in objects:
         b.update(dt)
-    if controlling is tank:
-        if keyboard[key.RIGHT]:
-            tank.right()        
-        elif keyboard[key.LEFT]:
-            tank.left()
-    elif controlling is tank2:
-        if keyboard[key.RIGHT]:
-            tank2.right()
-        elif keyboard[key.LEFT]:    
-            tank2.left()
+    if keyboard[key.D]:
+        tank.right()        
+    if keyboard[key.A]:
+        tank.left()
+    if keyboard[key.W]:
+        if tank_barrel.rotation <= -80.0:
+            None
+        else:
+            tank_barrel.rotation -= 1
+            
+    if keyboard[key.S]:
+        if tank_barrel.rotation == 0:
+            None
+        else:
+            tank_barrel.rotation += 1
+        
+            return
+    if keyboard[key.RIGHT]:
+        tank2.right()
+    if keyboard[key.UP]:
+        if tank_barrel2.rotation >= 80:
+            None
+        else:
+            tank_barrel2.rotation += 1
+    if keyboard[key.DOWN]:
+        if tank_barrel2.rotation == 0:
+            None
+        else:
+            tank_barrel2.rotation -= 1 
+    elif keyboard[key.LEFT]:    
+        tank2.left()
 
-    tank_controlled(dt)
+#ank_controlled(dt)
 
 
 
@@ -448,7 +533,7 @@ def setup_scene():
     tank_barrel = pyglet.sprite.Sprite(tank_barrel_image, batch=batch)
     tank_barrel.position = world_to_screen(b2Vec2(10, FLOOR + 2.5) + b2Vec2(1, 0.6))
     tank_barrel2 = pyglet.sprite.Sprite(tank_barrel_image2, batch=batch)
-    tank_barrel2.position = world_to_screen(b2Vec2(90, FLOOR + 2.5) + b2Vec2(-6.7, 3))
+    tank_barrel2.position = world_to_screen(b2Vec2(90, FLOOR + 2.5) + b2Vec2(-0.7, 4.2))
     
 
     # Create tank sprite
@@ -472,6 +557,8 @@ def on_draw():
 
 if __name__ == '__main__':
     world = setup_world()
+    contact_listener = ContactListener()
+    world.SetContactListener(contact_listener)
     setup_scene()
 
     # Warm up the wall physics
@@ -487,8 +574,8 @@ if __name__ == '__main__':
     keyboard = key.KeyStateHandler()
     window.push_handlers(keyboard)
     
-    window.event(on_mouse_press)
-    window.event(on_mouse_motion)
+   #window.event(on_mouse_press)
+    #window.event(on_mouse_motion)
     window.event(on_draw)
     window.event(on_key_press)
 
