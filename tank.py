@@ -155,6 +155,7 @@ class Wheel(PhysicalObject):
 class Cannonball(PhysicalObject):
     RADIUS = 0.8
     IMAGE = load_image_centered('textures/cannonball.png')
+    exploding = False
 
     @classmethod
     def fire(self, pos, velocity):
@@ -176,6 +177,48 @@ class Cannonball(PhysicalObject):
         self.body = body
         body.SetBullet(True)
         body.SetMassFromShapes()
+        
+    def explode(self):
+        self.exploding = True
+        #explosion_sound.play()
+
+    def update(self, dt):
+        if self.exploding and self.body:
+            self.destroy()
+            objects.append(Explosion(self.body.position))
+        else:
+            super(Cannonball, self).update(dt)
+
+
+class Explosion(GraphicalObject):
+    IMAGE = load_image_centered('textures/explosion.png')
+    ANGULAR_VELOCITY = 720
+    MAX_AGE = 0.4
+    age = 0
+
+    def create_sprite(self, pos):
+        super(Explosion, self).create_sprite(pos)
+        self.sprite.scale = 0.5
+
+    def update(self, dt):
+        self.age += dt
+        if self.age > self.MAX_AGE:
+            self.destroy()
+            return
+        self.sprite.scale *= 500.0 ** dt  # grow
+        self.sprite.rotation += self.ANGULAR_VELOCITY * dt  # spin
+        self.sprite.opacity = 255.0 * (1.0 - self.age / self.MAX_AGE)  # fade
+
+
+class ContactListener(b2ContactListener):
+    def Add(self, point):
+        #import ipdb; ipdb.set_trace()
+        o1 = point.shape1.GetBody().userData
+        o2 = point.shape2.GetBody().userData
+        if isinstance(o1, Cannonball):
+            o1.explode()
+        if isinstance(o2, Cannonball):
+            o2.explode()
 
 
 class TankBarrel(PhysicalObject):
