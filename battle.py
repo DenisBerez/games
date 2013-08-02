@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 import pyglet
+from pyglet import clock
 from pyglet import gl
 from pyglet.window import key
 from Box2D import (
@@ -271,6 +272,9 @@ class Explosion(GraphicalObject):
         self.sprite.opacity = 255.0 * (1.0 - self.age / self.MAX_AGE)  # fade
         
         
+        
+
+    
 '''class Flames(GraphicalObject):
     #import ipdb; ipdb.set_trace()
     IMAGE =pyglet.image.load('textures/fire.png')
@@ -281,10 +285,6 @@ class Explosion(GraphicalObject):
 class ContactListener(b2ContactListener):
     impairment = 0
     def Add(self, point):
-        ''' body_pairs = [(p['fixtureA'].body, p['fixtureB'].body) for p in self.points]
-        for body1, body2 in body_pairs:
-            a, b = body1, body2'''
-
         ob1 = point.shape1.GetBody().userData
         ob2 = point.shape2.GetBody().userData
         #ContactResult = b2ContactResult
@@ -293,8 +293,6 @@ class ContactListener(b2ContactListener):
             ob1.explode()
         if isinstance(ob2, Cannonball):
             ob2.explode()
-            #self.changes_in_contact(body1)
-
         if isinstance(ob1, Tank) or isinstance(ob2, Tank):
             #import ipdb; ipdb.set_trace()
             if isinstance(ob1, Tank):
@@ -307,14 +305,12 @@ class ContactListener(b2ContactListener):
             tank.damage(body, self.impairment)
             
     def Result(self, point):
-                impairment = point.normalImpulse 
-                #print impairment
-                if impairment <=40:
+                impairment = point.normalImpulse
+                if impairment <= 40:
                     self.impairment = 0
                 else:
                     self.impairment = int(impairment/40)
-    
-    
+
 
 
 class Wheel(PhysicalObject):
@@ -323,7 +319,7 @@ class Wheel(PhysicalObject):
         circle_def(1.0, friction=50.0)
     ]
         
-        
+
 class Tank(PhysicalObject):
     IMAGE = None
     LIFE = 100
@@ -376,14 +372,13 @@ class Tank(PhysicalObject):
     def damage(self, body, impairment):
         if isinstance(body, Cannonball):
             self.LIFE = self.LIFE - 50
-            #import ipdb; ipdb.set_trace()
             print self.LIFE
         if isinstance(body, HalfBrick) or isinstance(body, Brick):
             self.LIFE = self.LIFE - impairment
             print self.LIFE
         if self.LIFE < 75 :
             if self is tank:
-            #import ipdb; ipdb.set_trace()
+#                 import ipdb; ipdb.set_trace()
                 self.sprite.image = tank_body_image1_1
                 tank_barrel.image = pyglet.image.load('textures/barrel1.png')
             else:
@@ -403,12 +398,12 @@ class Tank(PhysicalObject):
             else:
                 self.sprite.image = tank_body_image2_3
                 tank_barrel2.image = load_image_ending('textures/barrel3l.png')
-            #tank.sprite.image
-            
-            #import ipdb; ipdb.set_trace()
-            
-            
-        
+        if self.LIFE <= 0:
+            damage_animation = Animation()
+            '''pyglet.clock.schedule( damage_animation.tank_animation(self))
+            pyglet.app.run()'''
+            clock.set_fps_limit (10)
+            damage_animation.tank_animation(self)
 
     def update(self, dt):
         self.motorspeed += self.motoraccel * self.ACCEL ** dt
@@ -426,17 +421,38 @@ class Tank(PhysicalObject):
             w.destroy()
         self.wheels[:] = []
         self.joints[:] = []
+        
+        
+class Animation(object):
+    #clock.set_fps_limit (10)
+    def tank_animation(self, tank):
+        #clock.set_fps_limit (10)
+        #import ipdb; ipdb.set_trace()
+        l = [load_image_centered('textures/5.png'),
+             load_image_centered('textures/6.png'),
+             load_image_centered('textures/7.png'),
+             load_image_centered('textures/8.png'),
+             load_image_centered('textures/9.png'),
+             load_image_centered('textures/10.png'),
+             load_image_centered('textures/11.png'),
+             load_image_centered('textures/12.png'),
+             load_image_centered('textures/13.png')]
+        
+        '''for i in l:
+            #clock.schedule_once(i, 1/10)
+            tank.sprite.image = i'''
+           
+        '''tank.sprite.image = load_image_centered('textures/5.png')
+        tank.sprite.image = load_image_centered('textures/6.png')
+        tank.sprite.image = load_image_centered('textures/7.png')
+        tank.sprite.image = load_image_centered('textures/8.png')'''
+        #world.DestroyBody(tank.body)
 
 
 
 def clamp(val, minimum, maximum):
     return max(minimum, min(maximum, val))
 
-
-#tank_pos = b2Vec2(10, FLOOR + 2.5)
-#tank_pos2 = b2Vec2(90, FLOOR + 2.5)
-#barrel_angle = 0
-#barrel_angle2 = 0
 batch = None
 tank = None
 tank2 = None
@@ -607,7 +623,7 @@ def setup_scene():
     #tank1.sprite._set_rotation(180)
     objects.append(tank2)
     
-    build_wall(50, FLOOR, 20)
+    #build_wall(50, FLOOR, 20)
 
 
 def on_draw():
