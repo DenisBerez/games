@@ -2,6 +2,7 @@
 import math
 import pyglet
 from pyglet import clock
+from pyglet.image import AnimationFrame
 from pyglet import gl
 from pyglet.window import key
 from Box2D import (
@@ -402,8 +403,9 @@ class Tank(PhysicalObject):
             damage_animation = Animation()
             '''pyglet.clock.schedule( damage_animation.tank_animation(self))
             pyglet.app.run()'''
-            clock.set_fps_limit (10)
+            #clock.set_fps_limit (10)
             damage_animation.tank_animation(self)
+            #pyglet.image.AnimationFrame
 
     def update(self, dt):
         self.motorspeed += self.motoraccel * self.ACCEL ** dt
@@ -424,30 +426,35 @@ class Tank(PhysicalObject):
         
         
 class Animation(object):
-    #clock.set_fps_limit (10)
-    def tank_animation(self, tank):
-        #clock.set_fps_limit (10)
-        #import ipdb; ipdb.set_trace()
-        l = [load_image_centered('textures/5.png'),
-             load_image_centered('textures/6.png'),
-             load_image_centered('textures/7.png'),
-             load_image_centered('textures/8.png'),
-             load_image_centered('textures/9.png'),
-             load_image_centered('textures/10.png'),
-             load_image_centered('textures/11.png'),
-             load_image_centered('textures/12.png'),
-             load_image_centered('textures/13.png')]
+    def animation_tank(self, tank, image):
+        #import pdb;pdb.set_trace()
+        tank_damage = map(lambda img: load_image_centered(img),image)
+        animation = pyglet.image.Animation.from_image_sequence(tank_damage, 0.3)
+        tank.sprite.image = animation
+        world.DestroyBody(tank.body)
         
-        '''for i in l:
+    def tank_animation(self, tank):
+        image = []
+        if tank == tank:
+            for img in range(4, 13):
+                image.append('textures/%d.png' %img)
+            self.animation_tank(tank, image)
+        else:
+            for img in range (4, 13):
+                image.append('textures/tank2.%dl.png' %img)
+            self.animation_tank(tank, image)
+        
+        '''for image in l:
             #clock.schedule_once(i, 1/10)
-            tank.sprite.image = i'''
-           
+            tank_damage = AnimationFrame(image, 1)'''
+        #import pdb;pdb.set_trace()
+        
+        #tank.sprite.on_animation_end
         '''tank.sprite.image = load_image_centered('textures/5.png')
         tank.sprite.image = load_image_centered('textures/6.png')
         tank.sprite.image = load_image_centered('textures/7.png')
         tank.sprite.image = load_image_centered('textures/8.png')'''
-        #world.DestroyBody(tank.body)
-
+#Tank.sprite.on_animation_end()
 
 
 def clamp(val, minimum, maximum):
