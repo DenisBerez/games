@@ -177,10 +177,12 @@ class PhysicalObject(GraphicalObject):
         body.userData = self
 
     def update(self, dt):
-        self.sprite.position = world_to_screen(self.body.position)
-        self.sprite.rotation = -math.degrees(self.body.angle)
+        if hasattr(self, 'body'):
+            self.sprite.position = world_to_screen(self.body.position)
+            self.sprite.rotation = -math.degrees(self.body.angle)
 
     def destroy(self):
+        #import ipdb; ipdb.set_trace()
         world.DestroyBody(self.body)
         objects.remove(self)
 
@@ -419,42 +421,54 @@ class Tank(PhysicalObject):
 
     def destroy(self):
         super(Tank, self).destroy()
-        for w in self.wheels:
+        for w in self:
+            import ipdb; ipdb.set_trace()
             w.destroy()
         self.wheels[:] = []
         self.joints[:] = []
         
         
 class Animation(object):
-    def animation_tank(self, tank, image):
+    def animation_damage_tank(self, tank, image):
+        
         #import pdb;pdb.set_trace()
         tank_damage = map(lambda img: load_image_centered(img),image)
         animation = pyglet.image.Animation.from_image_sequence(tank_damage, 0.3)
         tank.sprite.image = animation
-        world.DestroyBody(tank.body)
-        
+        #tanks = tank.body.GetWorld()
+        #tank.body.IsSleeping(True)
+        tank.destroy()
+        #lis = world.GetBodyList()
+#         del lis[:]
+        #world.IsLocked()
+        #for i in lis:
+            #world.DestroyBody(i)
+        #tank.GetJointList()
+        #world.DestroyBody(tank.body)
+        #del tank.body
+        #del tank_barrel
+        #tank_barrel.delete()
+        #tank.body.GetWorld.DestroyBody(tank.body)
+
     def tank_animation(self, tank):
         image = []
         if tank == tank:
             for img in range(4, 13):
                 image.append('textures/%d.png' %img)
-            self.animation_tank(tank, image)
+            self.animation_damage_tank(tank, image)
         else:
             for img in range (4, 13):
                 image.append('textures/tank2.%dl.png' %img)
-            self.animation_tank(tank, image)
+            self.animation_damage_tank(tank, image)
         
         '''for image in l:
             #clock.schedule_once(i, 1/10)
             tank_damage = AnimationFrame(image, 1)'''
-        #import pdb;pdb.set_trace()
-        
         #tank.sprite.on_animation_end
         '''tank.sprite.image = load_image_centered('textures/5.png')
         tank.sprite.image = load_image_centered('textures/6.png')
         tank.sprite.image = load_image_centered('textures/7.png')
         tank.sprite.image = load_image_centered('textures/8.png')'''
-#Tank.sprite.on_animation_end()
 
 
 def clamp(val, minimum, maximum):
@@ -532,9 +546,11 @@ def on_key_press(symbol, modifiers):
 
 def update(dt):
     world.Step(TIMESTEP, 20, 16)
-    tank_barrel.position = world_to_screen(tank.body.position + b2Vec2(1, 0.6))
-    #tank_barrel2.rotation = barrel_angle2   
-    tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-0.5, 1.6))
+    if hasattr(tank, 'body'):
+        tank_barrel.position = world_to_screen(tank.body.position + b2Vec2(1, 0.6))
+    #tank_barrel2.rotation = barrel_angle2
+    if hasattr(tank2, 'body'):
+        tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-0.5, 1.6))
     for b in objects:
         b.update(dt)
     if keyboard[key.D]:
