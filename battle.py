@@ -182,7 +182,7 @@ class PhysicalObject(GraphicalObject):
             self.sprite.rotation = -math.degrees(self.body.angle)
 
     def destroy(self):
-        #import ipdb; ipdb.set_trace()
+        #import pdb; pdb.set_trace()
         world.DestroyBody(self.body)
         objects.remove(self)
 
@@ -420,10 +420,11 @@ class Tank(PhysicalObject):
             w.update(dt)
 
     def destroy(self):
-        super(Tank, self).destroy()
-        for w in self:
-            import ipdb; ipdb.set_trace()
-            w.destroy()
+        #super(Tank, self).destroy()
+        import pdb; pdb.set_trace()
+        world.DestroyBody(self.body)
+        objects.remove(self)
+        #self.destroy()
         self.wheels[:] = []
         self.joints[:] = []
         
