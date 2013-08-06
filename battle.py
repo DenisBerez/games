@@ -22,6 +22,7 @@ FLOOR = 5
 SCALE = 0.1    # World units - screen units conversion factor
 
 world = None  # let's keep world as a global for now
+shooting = True
 
 ''' Создаем наш мир.
             world =  new b2World(
@@ -246,7 +247,6 @@ class Cannonball(PhysicalObject):
         #explosion_sound.play()
 
     def update(self, dt):
-        #import ipdb; ipdb.set_trace()
         if self.exploding and self.body:
             self.destroy()
             objects.append(Explosion(self.body.position))
@@ -260,7 +260,6 @@ class Explosion(GraphicalObject):
     ANGULAR_VELOCITY = 720
     MAX_AGE = 0.4
     age = 0
-    #import ipdb; ipdb.set_trace()
     def create_sprite(self, pos):
         super(Explosion, self).create_sprite(pos)
         self.sprite.scale = 0.5
@@ -278,12 +277,13 @@ class Explosion(GraphicalObject):
         
 
     
-'''class Flames(GraphicalObject):
-    #import ipdb; ipdb.set_trace()
-    IMAGE =pyglet.image.load('textures/fire.png')
+class Victory(GraphicalObject):
+    IMAGE =pyglet.image.load('textures/super.gif')
     def create_sprite(self, pos):
-        super(Flames, self).create_sprite(pos)
-        self.sprite.scale = 1'''
+        #import ipdb; ipdb.set_trace()
+        super(Victory, self).create_sprite(pos)
+        self.sprite.scale = 1.5
+        
 
 class ContactListener(b2ContactListener):
     impairment = 0
@@ -403,11 +403,9 @@ class Tank(PhysicalObject):
                 tank_barrel2.image = load_image_ending('textures/barrel3l.png')
         if self.LIFE <= 0:
             damage_animation = Animation()
-            '''pyglet.clock.schedule( damage_animation.tank_animation(self))
-            pyglet.app.run()'''
             #clock.set_fps_limit (10)
             damage_animation.tank_animation(self)
-            #pyglet.image.AnimationFrame
+            #pyglet.image.Display.get_default_screen()
 
     def update(self, dt):
         self.motorspeed += self.motoraccel * self.ACCEL ** dt
@@ -420,37 +418,30 @@ class Tank(PhysicalObject):
             w.update(dt)
 
     def destroy(self):
-        #super(Tank, self).destroy()
-        import pdb; pdb.set_trace()
         world.DestroyBody(self.body)
         objects.remove(self)
-        #self.destroy()
         self.wheels[:] = []
         self.joints[:] = []
         
         
 class Animation(object):
     def animation_damage_tank(self, tank, image):
-        
-        #import pdb;pdb.set_trace()
-        tank_damage = map(lambda img: load_image_centered(img),image)
-        animation = pyglet.image.Animation.from_image_sequence(tank_damage, 0.3)
-        tank.sprite.image = animation
-        #tanks = tank.body.GetWorld()
-        #tank.body.IsSleeping(True)
-        tank.destroy()
-        #lis = world.GetBodyList()
-#         del lis[:]
-        #world.IsLocked()
-        #for i in lis:
-            #world.DestroyBody(i)
-        #tank.GetJointList()
-        #world.DestroyBody(tank.body)
-        #del tank.body
-        #del tank_barrel
-        #tank_barrel.delete()
-        #tank.body.GetWorld.DestroyBody(tank.body)
-
+        global shooting
+        if shooting == True:
+            tank_damage = map(lambda img: load_image_centered(img),image)
+            animation = pyglet.image.Animation.from_image_sequence(tank_damage, 0.3)
+            tank.sprite.image = animation
+            tank.destroy()
+            shooting = False
+            #import ipdb; ipdb.set_trace()
+            vict = Victory
+            #pos = window.width / 33, window.height / 33
+            vict((25, 15))
+            #clock.schedule_once(del world, 1/10. )
+            #animation = pyglet.image.load_animation("textures/super.gif")
+            # Создаем спрайт объект.
+            #animSprite = pyglet.sprite.Sprite(animation)
+            #animSprite.draw()
     def tank_animation(self, tank):
         image = []
         if tank == tank:
@@ -462,14 +453,7 @@ class Animation(object):
                 image.append('textures/tank2.%dl.png' %img)
             self.animation_damage_tank(tank, image)
         
-        '''for image in l:
-            #clock.schedule_once(i, 1/10)
-            tank_damage = AnimationFrame(image, 1)'''
-        #tank.sprite.on_animation_end
-        '''tank.sprite.image = load_image_centered('textures/5.png')
-        tank.sprite.image = load_image_centered('textures/6.png')
-        tank.sprite.image = load_image_centered('textures/7.png')
-        tank.sprite.image = load_image_centered('textures/8.png')'''
+#clock.schedule_once(i, 1/10)
 
 
 def clamp(val, minimum, maximum):
@@ -483,66 +467,20 @@ tank_barrel2 = None
 objects = []
 slowmo = False
 
-'''controlling = tank
-
-camera = b2Vec2(W * 0.5, H * 0.5)
-
-
-
-def on_key_press(symbol, modifiers):
-    global controlling
-    keyboard.on_key_press(symbol, modifiers)
-    if symbol == key.TAB:
-        if controlling is tank:
-            controlling = tank2
-        else:
-            controlling = tank
-
-def tank_controlled(dt):
-    global camera
-    if controlling and controlling.body:
-        p = controlling.body.position   
-        cx, cy = camera + (p - camera) * (1.0 - 0.1 ** dt)
-        cx = max(cx, W * 0.5)
-        cy = max(cy, H * 0.5)
-        camera = b2Vec2(cx, cy)
-        
-def on_mouse_press(x, y, button, modifiers):
-    """Fire in the hole!"""
-    if controlling is tank:
-        angle = math.radians(-tank_barrel.rotation)
-        v = b2Vec2(math.cos(angle), math.sin(angle))
-        pos = controlling.body.position + b2Vec2(1.7, 2) + v * 3.2
-        Cannonball.fire(pos, v * 100)
-    else:
-        angle = math.radians(tank_barrel2.rotation)
-        v = b2Vec2(math.cos(angle), math.sin(angle))    
-        pos = controlling.body.position + b2Vec2(-6, 2) + - v * 3
-        Cannonball.fire((pos), v * 100)
-    
-def on_mouse_motion(x, y, dx, dy):
-    global barrel_angle, barrel_angle2
-    p = screen_to_world((x, y))
-    dx, dy = p - controlling.body.position
-    if controlling is tank:
-        barrel_angle = math.degrees(math.atan2(dy, dx))
-        barrel_angle = clamp(barrel_angle, 0, 80)
-    else:
-        barrel_angle2 = math.degrees(math.atan2(dy, -dx))
-        barrel_angle2 = clamp(barrel_angle2, 0, 80)'''
  
 def on_key_press(symbol, modifiers):
     keyboard.on_key_press(symbol, modifiers)
-    if symbol == key.E:
-        angle = math.radians(-tank_barrel.rotation)
-        v = b2Vec2(math.cos(angle), math.sin(angle))
-        pos = tank.body.position + b2Vec2(1.7, 2) + v * 3.2
-        Cannonball.fire(pos, v * 100)
-    if symbol == key.INSERT:
-        angle = math.radians(tank_barrel2.rotation)
-        v = b2Vec2(math.cos(-angle), math.sin(-angle))    
-        pos = tank2.body.position + b2Vec2(-2, 2) + (-v) * 3
-        Cannonball.fire((pos), (-v) * 100)
+    if shooting == True:
+        if symbol == key.E:
+                angle = math.radians(-tank_barrel.rotation)
+                v = b2Vec2(math.cos(angle), math.sin(angle))
+                pos = tank.body.position + b2Vec2(1.7, 2) + v * 3.2
+                Cannonball.fire(pos, v * 100)
+        if symbol == key.INSERT:
+            angle = math.radians(tank_barrel2.rotation)
+            v = b2Vec2(math.cos(-angle), math.sin(-angle))    
+            pos = tank2.body.position + b2Vec2(-2, 2) + (-v) * 3
+            Cannonball.fire((pos), (-v) * 100)
 
 
 def update(dt):
@@ -552,39 +490,40 @@ def update(dt):
     #tank_barrel2.rotation = barrel_angle2
     if hasattr(tank2, 'body'):
         tank_barrel2.position = world_to_screen(tank2.body.position + b2Vec2(-0.5, 1.6))
-    for b in objects:
-        b.update(dt)
-    if keyboard[key.D]:
-        tank.right()        
-    if keyboard[key.A]:
-        tank.left()
-    if keyboard[key.W]:
-        if tank_barrel.rotation <= -60.0:
-            None
-        else:
-            tank_barrel.rotation -= 1
+    if shooting == True:
+        for b in objects:
+            b.update(dt)
+        if keyboard[key.D]:
+            tank.right()        
+        if keyboard[key.A]:
+            tank.left()
+        if keyboard[key.W]:
+            if tank_barrel.rotation <= -60.0:
+                None
+            else:
+                tank_barrel.rotation -= 1
+                
+        if keyboard[key.S]:
+            if tank_barrel.rotation == 0:
+                None
+            else:
+                tank_barrel.rotation += 1
             
-    if keyboard[key.S]:
-        if tank_barrel.rotation == 0:
-            None
-        else:
-            tank_barrel.rotation += 1
-        
-            return
-    if keyboard[key.RIGHT]:
-        tank2.right()
-    if keyboard[key.UP]:
-        if tank_barrel2.rotation >= 60:
-            None
-        else:
-            tank_barrel2.rotation += 1
-    if keyboard[key.DOWN]:
-        if tank_barrel2.rotation == 0:
-            None
-        else:
-            tank_barrel2.rotation -= 1 
-    elif keyboard[key.LEFT]:    
-        tank2.left()
+                return
+        if keyboard[key.RIGHT]:
+            tank2.right()
+        if keyboard[key.UP]:
+            if tank_barrel2.rotation >= 60:
+                None
+            else:
+                tank_barrel2.rotation += 1
+        if keyboard[key.DOWN]:
+            if tank_barrel2.rotation == 0:
+                None
+            else:
+                tank_barrel2.rotation -= 1 
+        elif keyboard[key.LEFT]:    
+            tank2.left()
 
 #ank_controlled(dt)
 
